@@ -19,7 +19,7 @@ section .text
 
 main:
     push rbp 
-    mov rbp, rsp
+    mov rbp, rsp ; stack alignment
 
     ; reading input dimensions
     mov rdi, dimensions
@@ -41,7 +41,7 @@ main:
     call read_matrix
 
     xor rax, rax  ; return 0
-    leave
+    leave ; stack alignment
     ret
 
 read_matrix:
@@ -51,32 +51,31 @@ read_matrix:
 .row_loop:
     xor r9, r9 ; set column iterator to zero
 .column_loop:
-    ; Calculate correct matrix element address
     mov r10, r8
     imul r10, rcx  ; row * columns
     add r10, r9    ; + column
     
-    ; Input element
+    ; input element
     mov rdi, element
-    lea rsi, [rax + r10 * 8]  ; Correct element address
-    push rax
+    lea rsi, [rax + r10 * 8]
+    push rax ; push needed register before being changed by call
     push rbx
     push rcx
     push r8
     push r9
     call scanf
 
-    pop r9
+    pop r9 ; pop the registers
     pop r8
     pop rcx
     pop rbx
     pop rax
 
-    inc r9
+    inc r9 ; increase column iterator
     cmp r9, rcx
     jl .column_loop
 
-    inc r8
+    inc r8 ; increase row iterator
     cmp r8, rbx
     jl .row_loop
 
