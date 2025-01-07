@@ -1,8 +1,10 @@
+%define SIZE 256
+
 section .bss
-    matX resq 256 ; reserve space for matrix X
-    matY resq 256 ; reserve space for matrix Y
-    matZ resq 256 ; reserve space for matrix Z = XY
-    matXT resq 256 ; reserve space for matrix X transpose
+    matX resq SIZE ; reserve space for matrix X
+    matY resq SIZE ; reserve space for matrix Y
+    matZ resq SIZE ; reserve space for matrix Z = XY
+    matXT resq SIZE ; reserve space for matrix X transpose
 
     m resq 1 ; rows of X or columns of Y
     n resq 1 ; columns of X or rows of Y
@@ -48,7 +50,7 @@ main:
 
     mov rdi, output
     mov rsi, rax
-    call printf
+    call printf ; print the output
 
     xor rax, rax  ; return 0
     leave ; stack alignment
@@ -106,7 +108,7 @@ transpose:
     add r11, r8
 
     mov r12, [matX + r10 * 8]
-    mov [matXT + r11 * 8], r12
+    mov [matXT + r11 * 8], r12 ; transpose logic
 
     inc r9
     cmp r9, [n]
@@ -164,7 +166,7 @@ trace:
     imul r9, [m]
     add r9, r8
 
-    add rax, [matZ + r9 * 8]
+    add rax, [matZ + r9 * 8] ; output reserved in rax
 
     inc r8
     cmp r8, [m]

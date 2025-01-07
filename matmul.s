@@ -1,7 +1,9 @@
+%define SIZE 256
+
 section .bss
-    matA resq 256 ; reserve space for matrix A
-    matB resq 256 ; reserve space for matrix B
-    matC resq 256 ; reserve space for matrix C
+    matA resq SIZE ; reserve space for matrix A
+    matB resq SIZE ; reserve space for matrix B
+    matC resq SIZE ; reserve space for matrix C
 
     m resq 1 ; rows of A
     n resq 1 ; columns of A or rows of B
@@ -164,5 +166,3 @@ print_matrix:
     jl .row_loop
 
     ret
-
-; defines and macros
