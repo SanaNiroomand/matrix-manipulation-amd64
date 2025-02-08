@@ -1,19 +1,19 @@
 %define SIZE 256
 
 section .data
-    ; reserve 32-bit floats for matrices    
-    matA: times SIZE dd 0
-    matT: times SIZE dd 0
-    matC: times SIZE dd 0
-    matB: times SIZE dd 0
+    ; reserve 64-bit doubles for matrices    
+    matA: times SIZE dq 0
+    matT: times SIZE dq 0
+    matC: times SIZE dq 0
+    matB: times SIZE dq 0
 
-    n: dd 0 ; rows of A
-    m: dd 0 ; columns of A and rows of B
-    q: dd 0 ; columns of B
+    m: dq 0 ; rows of A
+    n: dq 0 ; columns of A and rows of B
+    q: dq 0 ; columns of B
 
-    dimensions: db "%d %d %d", 0
-    element_in: db "%f", 0
-    element_out: db "%.2f ", 0
+    dimensions: db "%lld %lld %lld", 0
+    element_in: db "%lf", 0
+    element_out: db "%.2lf ", 0
     newline: db 10, 0
 
 extern scanf
@@ -28,21 +28,21 @@ main:
 
     ; reading input dimensions
     mov edi, dimensions
-    lea esi, [m]
-    lea edx, [n]
-    lea ecx, [q]
+    lea rsi, [m]
+    lea rdx, [n]
+    lea rcx, [q]
     call scanf
 
     ; read matrix A
-    lea eax, [matA]
-    mov ebx, [m]
-    mov ecx, [n]
+    lea rax, [matA]
+    mov rbx, [m]
+    mov rcx, [n]
     call read_matrix
 
     ; read matrix B (transpose)
-    lea eax, [matT]
-    mov ebx, [n]
-    mov ecx, [q]
+    lea rax, [matT]
+    mov rbx, [q]
+    mov rcx, [n]
     call read_matrix
 
     call transpose
@@ -68,7 +68,7 @@ read_matrix:
     
     ; input element
     mov rdi, element_in
-    lea rsi, [rax + r10 * 4]
+    lea rsi, [rax + r10 * 8]
     push rax ; push needed register before being changed by call
     push rbx
     push rcx
@@ -98,11 +98,11 @@ transpose:
     xor r9, r9
 .column_loop:
     mov r10, r8
-    imul r10, r9
+    imul r10, [n]
     add r10, r9
 
     mov r11, r9
-    imul r11, r8
+    imul r11, [q]
     add r11, r8
 
     mov r12, [matT + r10 * 8]
@@ -113,7 +113,7 @@ transpose:
     jl .column_loop
 
     inc r8
-    cmp r8, [m]
+    cmp r8, [q]
     jl .row_loop
 
     ret
@@ -130,29 +130,29 @@ multiply_matrices:
 ; implementing the dot product with vectors and parallelism in intersection loop
 .intersection_loop:
     
-    ; load 8 elements from A[i][k] (unroll by 4)
+    ; load 4 elements from A[i][k]
     mov r11, r8
     imul r11, [n] ; row * columns
     add r11, r10 ; + column
-    movss xmm1, [matA + r11 * 4] ; A[i][k:k+7]
+    movupd xmm1, [matA + r11 * 8] ; A[i][k:k+4]
 
-    ; load 8 elements from B[k][j] (unroll by 4)
+    ; load 4 elements from B[k][j]
     mov r11, r9
     imul r11, [n] ; row * columns
     add r11, r10 ; + column
-    movss xmm2, [matB + r11 * 4] ; B[k:k+7][j]
+    movupd xmm2, [matB + r11 * 8] ; B[k:k+4][j]
 
-    mulss xmm1, xmm2
-    addss xmm0, xmm1
+    mulpd xmm1, xmm2
+    addpd xmm0, xmm1
 
-    add r10, 8 ; k += 8
+    add r10, 2 ; k += 2 processing two doubles at a time with SSE registers
     cmp r10, [n]
     jl .intersection_loop
 
     mov r11, r8
     imul r11, [q] ; row * columns
     add r11, r9 ; + column
-    movss [matC + r11 * 4], xmm0 ; store the result in C[i][j]
+    movsd [matC + r11 * 8], xmm0 ; store the result in C[i][j]
 
     inc r9 ; j++
     cmp r9, [q]
@@ -172,7 +172,7 @@ print_matrix:
     mov rax, r8
     mul qword [q] ; row * columns
     add rax, r9 ; + column
-    shl rax, 2 ; 4 bytes for each number
+    shl rax, 3 ; 8 bytes for each number
 
     push r8 ; push needed registers
     push r9
