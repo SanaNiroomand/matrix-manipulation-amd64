@@ -3,8 +3,6 @@
 section .bss
     matX    resq SIZE         ; reserve space for matrix X
     matY    resq SIZE         ; reserve space for matrix Y
-    matZ    resq SIZE         ; reserve space for matrix Z = XY
-    matXT   resq SIZE         ; reserve space for matrix X transpose
 
     m       resq 1            ; rows of X or columns of Y
     n       resq 1            ; columns of X or rows of Y

@@ -1,18 +1,16 @@
 %define SIZE 256
 
-section .bss
-    matX resq SIZE ; reserve space for matrix X
-    matY resq SIZE ; reserve space for matrix Y
-    matZ resq SIZE ; reserve space for matrix Z = XY
-    matXT resq SIZE ; reserve space for matrix X transpose
-
-    m resq 1 ; rows of X or columns of Y
-    n resq 1 ; columns of X or rows of Y
-
 section .data
+    ; reserve 64-bit doubles for matrices    
+    matX: times SIZE dq 0.0
+    matY: times SIZE dq 0.0
+
+    m: dq 0 ; rows of A
+    n: dq 0 ; columns of A and rows of B
+
     dimensions: db "%lld %lld", 0
-    element_in: db "%lld", 0
-    output: db "%lld", 0
+    element_in: db "%lf", 0
+    output: db "%.2lf", 0
 
 extern scanf
 extern printf
@@ -42,15 +40,12 @@ main:
     mov rcx, [n]
     call read_matrix
 
-    call transpose
-
-    call multiply
-
-    call trace
+    call inner_product_unrolled
 
     mov rdi, output
-    mov rsi, rax
-    call printf ; print the output
+    mov rsi, rax        ; result is in rax
+    mov rax, 1
+    call printf         ; print the output
 
     xor rax, rax  ; return 0
     leave ; stack alignment
@@ -77,6 +72,7 @@ read_matrix:
     push r9
     call scanf
 
+
     pop r9 ; pop the registers
     pop r8
     pop rcx
@@ -93,83 +89,64 @@ read_matrix:
 
     ret
 
+inner_product_unrolled:
+    ; Calculate total number of elements = m * n.
+    mov rax, [m]      ; load m (number of rows)
+    mov rbx, [n]      ; load n (number of columns)
+    imul rax, rbx     ; rax = m * n (total number of elements)
+    mov r12, rax      ; save total in r12
 
-transpose:
-    xor r8, r8
-.row_loop:
-    xor r9, r9
-.column_loop:
-    mov r10, r8
-    imul r10, r9
-    add r10, r9
+    ; Determine how many groups of 4 elements exist.
+    mov r13, r12
+    shr r13, 2        ; r13 = total / 4
 
-    mov r11, r9
-    imul r11, r8
-    add r11, r8
+    xor r8, r8        ; index = 0
+    pxor xmm0, xmm0   ; clear accumulator (result in xmm0)
 
-    mov r12, [matX + r10 * 8]
-    mov [matXT + r11 * 8], r12 ; transpose logic
+.unrolled_loop:
+    cmp r13, 0
+    je .remainder     ; if no more groups, jump to remainder processing
 
-    inc r9
-    cmp r9, [n]
-    jl .column_loop
+    ; Process 4 elements per iteration.
+    movsd xmm1, [matX + r8*8]
+    movsd xmm2, [matY + r8*8]
+    mulsd xmm1, xmm2
+    addsd xmm0, xmm1
 
+    movsd xmm1, [matX + (r8+1)*8]
+    movsd xmm2, [matY + (r8+1)*8]
+    mulsd xmm1, xmm2
+    addsd xmm0, xmm1
+
+    movsd xmm1, [matX + (r8+2)*8]
+    movsd xmm2, [matY + (r8+2)*8]
+    mulsd xmm1, xmm2
+    addsd xmm0, xmm1
+
+    movsd xmm1, [matX + (r8+3)*8]
+    movsd xmm2, [matY + (r8+3)*8]
+    mulsd xmm1, xmm2
+    addsd xmm0, xmm1
+
+    add r8, 4         ; processed 4 elements, so increase index by 4
+    dec r13           ; decrement group counter
+    jmp .unrolled_loop
+
+.remainder:
+    ; Process any remaining elements (if total number of elements mod 4 != 0).
+    mov r13, r12
+    and r13, 3       ; r13 = total mod 4 (number of remaining elements)
+.tail_loop:
+    cmp r13, 0
+    je .done
+    movsd xmm1, [matX + r8*8]
+    movsd xmm2, [matY + r8*8]
+    mulsd xmm1, xmm2
+    addsd xmm0, xmm1
     inc r8
-    cmp r8, [m]
-    jl .row_loop
+    dec r13
+    jmp .tail_loop
 
-    ret
-
-
-multiply:
-    xor r8, r8 ; i = 0
-.row_loop: 
-    xor r9, r9 ; j = 0
-.column_loop:
-    xor r10, r10 ; k = 0
-.intersection_loop:
-    mov r11, r8
-    imul r11, [n] ; row * columns
-    add r11, r10 ; + column
-
-    mov r12, r10
-    imul r12, [m] ; row * columns
-    add r12, r9 ; + column
-
-    mov r13, r8
-    imul r13, [m] ; row * columns
-    add r13, r9 ; + column
-
-    mov r14, [matXT + r11 * 8] ; A[i][k]
-    imul r14, [matY + r12 * 8] ; A[i][k] * B[k][j]
-    add [matZ + r13 * 8], r14 ; add to the result
-
-    inc r10 ; k++
-    cmp r10, [n]
-    jl .intersection_loop
-
-    inc r9 ; j++
-    cmp r9, [m]
-    jl .column_loop
-
-    inc r8 ; i++
-    cmp r8, [m]
-    jl .row_loop
-
-    ret
-
-trace:
-    xor r8, r8
-    xor rax, rax
-.loop:
-    mov r9, r8
-    imul r9, [m]
-    add r9, r8
-
-    add rax, [matZ + r9 * 8] ; output reserved in rax
-
-    inc r8
-    cmp r8, [m]
-    jl .loop
-
+.done:
+    movq rax, xmm0
     ret
